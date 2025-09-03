@@ -1,0 +1,38 @@
+# https://taskfile.dev
+
+version: '3'
+
+method: timestamp
+
+vars:
+  GREETING: Hello, World!
+
+tasks:
+  default:
+    cmds:
+      - task: run
+
+  run:
+    deps: [build]
+    cmds:
+      - ./tmp/todo
+
+  build:
+    cmds:
+      - go build -o=./tmp/todo ./cmd/web/
+    sources:
+      - cmd/web/*.go
+      - pkg/*.go
+    generates:
+      - tmp/todo
+
+
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - go build -ldflags="-X main.Version={{.GIT_COMMIT}}" main.go
+    vars:
+      GIT_COMMIT:
+        sh: git log -n 1 --format=%h
