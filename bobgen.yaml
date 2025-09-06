@@ -1,0 +1,35 @@
+sqlite:
+  dsn: "./tmp/todo.db"
+  except:
+    schema_migrations:
+    sessions:
+
+type_system: "database/sql"
+
+plugins:
+  dbinfo:
+    disabled: true
+    pkgname: "dbinfo"
+    destination: "./database/gen/dbinfo"
+  enums:
+    disabled: false
+    pkgname: "enums"
+    destination: "./database/gen/enums"
+  models:
+    disabled: false
+    pkgname: "models"
+    destination: "./database/gen/models"
+  factory:
+    disabled: true
+    pkgname: "factory"
+    destination: "./database/gen/factory"
+  dberrors:
+    disabled: false
+    pkgname: "dberrors"
+    destination: "./database/gen/dberrors"
+  where:
+    disabled: false
+  loaders:
+    disabled: false
+  joins:
+    disabled: false

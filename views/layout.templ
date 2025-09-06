@@ -1,0 +1,33 @@
+package views
+
+type State struct {
+	IsAuthenticated bool
+	Name            string
+	Version         string
+}
+
+templ Layout(s State) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<link href={ staticPath("main.css") } rel="stylesheet" type="text/css"/>
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@main/bundles/datastar.js"></script>
+			<title>TODO App</title>
+		</head>
+		<body>
+			<header>
+				if s.IsAuthenticated {
+					<button>Logout</button>
+				} else {
+					<button>Log In</button>
+				}
+			</header>
+			<main>
+				{ children... }
+			</main>
+			<footer>{ s.Version }</footer>
+		</body>
+	</html>
+}

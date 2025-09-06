@@ -1,0 +1,69 @@
+:root {
+    font-size: 20px;
+    --background-color: rgb(28, 37, 46);
+    --foreground-color: rgb(195, 129, 55);
+}
+
+*, ::after, ::before {
+    box-sizing: border-box
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    background-color: var(--background-color);
+}
+
+
+body:hover {
+    outline: 5px yellowgreen solid;
+}
+
+header {
+    padding: 0;
+    display: flex;
+    justify-content: flex-end;
+}
+
+header > button {
+    margin: 2px;
+    background-color: var(--background-color);
+    color: var(--foreground-color);
+}
+
+main {
+    flex-basis: 100%;
+    margin-bottom: auto;
+    margin-left: 15%;
+    margin-right: 15%;
+}
+
+main > .todos {
+    color: var(--foreground-color);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.todo {
+    width: 100%;
+}
+
+input {
+    width: 100%;
+    margin-bottom: 10px;
+    border: none;
+    text-align: center;
+    font-size: 0.9rem;
+    background-color: var(--background-color);
+    color: var(--foreground-color);
+}
+
+footer {
+    align-self: center;
+    color: var(--foreground-color);
+}
+

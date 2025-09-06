@@ -1,0 +1,30 @@
+package views
+
+import "github.com/danielcosme/go-todo/database/gen/models"
+import "fmt"
+
+templ Todos(s State, tds models.TodoSlice) {
+	@Layout(s) {
+		<div class="todos">
+			<input
+				id="new-todo"
+				type="text"
+				placeholder="Add TODO"
+				data-signals-input
+				data-bind-input
+				data-on-keydown="
+                    evt.key === 'Enter' && $input.trim() && @post('/todo') && ($input = '');
+                "
+			/>
+			<div id="todo-list">
+				for _, t := range tds {
+					@Todo(t)
+				}
+			</div>
+		</div>
+	}
+}
+
+templ Todo(t *models.Todo) {
+	<div id={ fmt.Sprintf("t-%d", t.ID) }>{ t.Title } </div>
+}
