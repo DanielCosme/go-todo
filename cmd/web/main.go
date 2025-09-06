@@ -4,6 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"runtime/debug"
+	"strconv"
+	"time"
+
 	"github.com/a-h/templ"
 	"github.com/danielcosme/go-todo/database/gen/models"
 	"github.com/danielcosme/go-todo/views"
@@ -12,13 +19,14 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/sqlite/sm"
-	"log/slog"
 	_ "modernc.org/sqlite"
-	"net/http"
-	"os"
-	"runtime/debug"
-	"time"
 )
+
+// TODO: Implement Authentication.
+// TODO: Deploy.
+
+// NOTE: Remember that request with the header "Datastar-Request: true"
+// 		 are actions generated in the front-end (@get, @post, @put, etc...)
 
 var version string
 
@@ -47,21 +55,33 @@ func main() {
 	e.Use(middleware.RequestLoggerWithConfig(midSlogConfig()))
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
-	// e.Use(midSecureHeaders)
+	e.Use(midSecureHeaders)
 	e.StaticFS("/static", echo.MustSubFS(views.StaticFS, "static"))
 
 	pSetter := &models.ProjectSetter{Name: ref("life")}
-	models.Projects.Insert(pSetter).One(context.TODO(), bobDB)
+	models.Projects.Insert(pSetter).One(context.Background(), bobDB)
 
 	e.GET("/", func(c echo.Context) error {
-		s := views.State{Name: "Daniel", Version: version}
+		s := views.State{Version: version}
 		tds, err := models.Todos.
-			Query(sm.OrderBy(models.Todos.Columns.ID).Desc()).
-			All(context.Background(), bobDB)
+			Query(
+				models.SelectWhere.Todos.Done.EQ(false),
+				sm.OrderBy(models.Todos.Columns.ID).Desc()).
+			All(ctx(c), bobDB)
 		if err != nil {
 			return err
 		}
-		return renderOK(c, views.Todos(s, tds))
+		tds2, err := models.Todos.
+			Query(
+				models.SelectWhere.Todos.Done.EQ(true),
+				sm.OrderBy(models.Todos.Columns.ID).Desc(),
+				sm.Limit(20)).
+			All(ctx(c), bobDB)
+		if err != nil {
+			return err
+		}
+
+		return renderOK(c, views.Todos(s, append(tds, tds2...)))
 	})
 
 	type PostTodo struct {
@@ -69,29 +89,50 @@ func main() {
 	}
 	e.POST("/todo", func(c echo.Context) error {
 		data := new(PostTodo)
-		c.Bind(data)
+		if err := c.Bind(data); err != nil {
+			slog.Error(err.Error())
+			return c.NoContent(http.StatusInternalServerError)
+		}
 		if len(data.Item) <= 3 {
 			return c.NoContent(http.StatusBadRequest)
 		}
-
 		todoS := models.TodoSetter{
 			ProjectID: ref(int64(1)),
 			Title:     ref(data.Item),
 		}
-		todo, err := models.Todos.Insert(&todoS).One(c.Request().Context(), bobDB)
+		todo, err := models.Todos.Insert(&todoS).One(ctx(c), bobDB)
 		if err != nil {
 			return err
 		}
-
 		h := c.Response().Header()
 		h.Set(echo.HeaderContentType, echo.MIMETextHTML)
 		h.Set("datastar-selector", "#todo-list")
 		h.Set("datastar-mode", "prepend")
-		return renderOK(c, views.Todo(todo))
+		return render(c, http.StatusCreated, views.Todo(todo))
+	})
+
+	e.PUT("/todo/:id", func(c echo.Context) error {
+		id := c.Param("id")
+		todo, err := models.FindTodo(ctx(c), bobDB, parseID(id))
+		if err != nil {
+			return c.NoContent(http.StatusNotFound)
+		}
+		todo.Update(ctx(c), bobDB, &models.TodoSetter{Done: ref(!todo.Done)})
+		if err != nil {
+			return c.NoContent(http.StatusInternalServerError)
+		}
+		return c.Redirect(http.StatusSeeOther, "/")
 	})
 
 	slog.Info("starting HTTP Server", "port", port)
-	e.Start(fmt.Sprintf(":%d", port))
+	err = e.Start(fmt.Sprintf(":%d", port))
+	exitIfErr(err)
+}
+
+func parseID(i string) int64 {
+	id, err := strconv.ParseInt(i, 10, 64)
+	exitIfErr(err)
+	return id
 }
 
 func renderOK(c echo.Context, co templ.Component) error {
@@ -99,27 +140,19 @@ func renderOK(c echo.Context, co templ.Component) error {
 }
 
 func render(c echo.Context, status int, co templ.Component) error {
-	html, err := createHTML(c.Request().Context(), co)
+	buf := templ.GetBuffer()
+	defer templ.ReleaseBuffer(buf)
+	err := co.Render(ctx(c), buf)
 	if err != nil {
 		return err
 	}
-	return c.HTML(status, html)
-}
-
-func createHTML(ctx context.Context, co templ.Component) (string, error) {
-	buf := templ.GetBuffer()
-	defer templ.ReleaseBuffer(buf)
-	err := co.Render(ctx, buf)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return c.HTMLBlob(status, buf.Bytes())
 }
 
 func midSecureHeaders(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		h := c.Response().Header()
-		h.Set(echo.HeaderContentSecurityPolicy,
+		h.Set(echo.HeaderContentSecurityPolicyReportOnly,
 			"default-src 'self;"+
 				"style-src 'self';"+
 				"script-src 'self' cdn.jsdelivr.net;"+
@@ -142,12 +175,13 @@ func midSlogConfig() middleware.RequestLoggerConfig {
 				slog.String("uri", v.URI),
 				slog.Int("status", v.Status),
 				slog.String("IP", v.RemoteIP),
-				slog.String("Duration", fmt.Sprintf("%d ms", time.Since(v.StartTime).Milliseconds())),
+				slog.String("Duration",
+					fmt.Sprintf("%d ms", time.Since(v.StartTime).Milliseconds())),
 			}
 			if v.Error == nil {
-				slog.Default().LogAttrs(context.Background(), slog.LevelInfo, v.Method, attrs...)
+				slog.Default().LogAttrs(ctx(c), slog.LevelInfo, v.Method, attrs...)
 			} else {
-				slog.Default().LogAttrs(context.Background(), slog.LevelError, v.Method,
+				slog.Default().LogAttrs(ctx(c), slog.LevelError, v.Method,
 					append(attrs, slog.String("err", v.Error.Error()))...,
 				)
 			}
@@ -168,6 +202,10 @@ func Version() string {
 		}
 	}
 	return fmt.Sprintf("%s-%s", version, hash)
+}
+
+func ctx(c echo.Context) context.Context {
+	return c.Request().Context()
 }
 
 func exitIfErr(err error) {

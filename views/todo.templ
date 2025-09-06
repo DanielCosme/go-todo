@@ -26,5 +26,17 @@ templ Todos(s State, tds models.TodoSlice) {
 }
 
 templ Todo(t *models.Todo) {
-	<div id={ fmt.Sprintf("t-%d", t.ID) }>{ t.Title } </div>
+	{{
+	todoID := fmt.Sprintf("t-%d", t.ID)
+	action := fmt.Sprintf("@put('/todo/%d')", t.ID)
+	classes := "todo"
+	if t.Done {
+		classes += " done"
+	}
+	}}
+	<button
+		class={ classes }
+		id={ todoID }
+		data-on-click={ action }
+	>{ t.Title } </button>
 }

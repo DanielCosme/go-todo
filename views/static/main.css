@@ -1,7 +1,9 @@
 :root {
     font-size: 20px;
-    --background-color: rgb(28, 37, 46);
-    --foreground-color: rgb(195, 129, 55);
+    --background-color: rgb(8, 57, 41); /* Emerald green */
+    --background-color-light: hsl(160, 75.4%, 19%);
+    --foreground-color: rgb(219, 249, 241); /* Mint */
+    --foreground-color-light: rgb(219, 249, 241); /* Mint */
 }
 
 *, ::after, ::before {
@@ -17,9 +19,24 @@ body {
     background-color: var(--background-color);
 }
 
+.todo {
+    text-align: left;
+    color: var(--foreground-color);
+    background-color: var(--background-color);
+    margin: 3px 0;
+    padding: 2px;
+    border: none;
+    font-size: 0.9rem;
+}
 
-body:hover {
-    outline: 5px yellowgreen solid;
+.done {
+   text-decoration-line: line-through;
+    color: darkslategray;
+}
+
+.todo:hover {
+    color: whitesmoke;
+    background-color: var(--background-color-light);
 }
 
 header {
@@ -66,4 +83,3 @@ footer {
     align-self: center;
     color: var(--foreground-color);
 }
-
