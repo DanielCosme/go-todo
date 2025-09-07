@@ -90,8 +90,8 @@ tasks:
 
   gen-html:
     cmds:
-      - templ generate
-      - templ fmt .
+      - go tool templ generate
+      - go tool templ fmt .
 
   db:
     cmds:
