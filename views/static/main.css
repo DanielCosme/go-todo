@@ -6,6 +6,19 @@
     --foreground-color-light: rgb(219, 249, 241); /* Mint */
 }
 
+.fg-color {
+    color: var(--foreground-color);
+}
+
+.bg-color-light {
+    background-color: var(--background-color-light);
+}
+
+input:hover {
+    color: var(--background-color);
+    background-color: var(--foreground-color-light);
+}
+
 *, ::after, ::before {
     box-sizing: border-box
 }
@@ -69,7 +82,7 @@ main > .todos {
     width: 100%;
 }
 
-input {
+.todo-input {
     width: 100%;
     margin-bottom: 10px;
     border: none;
@@ -77,6 +90,7 @@ input {
     font-size: 0.9rem;
     background-color: var(--background-color);
     color: var(--foreground-color);
+    margin-top: 20px;
 }
 
 footer {

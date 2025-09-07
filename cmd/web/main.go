@@ -12,21 +12,29 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/alexedwards/scs/sqlite3store"
+	"github.com/alexedwards/scs/v2"
 	"github.com/danielcosme/go-todo/database/gen/models"
-	"github.com/danielcosme/go-todo/views"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lmittmann/tint"
 	"github.com/stephenafamo/bob"
-	"github.com/stephenafamo/bob/dialect/sqlite/sm"
+	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
 
 // TODO: Implement Authentication.
+//   Sessions with Alex Edwards library.
+
 // TODO: Deploy.
+//   Single Binary. Systemd Service.
 
 // NOTE: Remember that request with the header "Datastar-Request: true"
 // 		 are actions generated in the front-end (@get, @post, @put, etc...)
+
+const ctxKeyAuthenticatedUserID = "authenticated_user_id"
+const ctxKeyIsAuthenticated = "is_authenticated"
+const ctxUser = "user"
 
 var version string
 
@@ -51,82 +59,40 @@ func main() {
 	exitIfErr(err)
 	bobDB := bob.NewDB(db)
 
-	e := echo.New()
-	e.Use(middleware.RequestLoggerWithConfig(midSlogConfig()))
-	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
-	e.Use(midSecureHeaders)
-	e.StaticFS("/static", echo.MustSubFS(views.StaticFS, "static"))
+	sessionManager := scs.New()
+	sessionManager.Lifetime = 24 * time.Hour * 15
+	sessionManager.Store = sqlite3store.New(db)
+	sessionManager.Cookie.SameSite = http.SameSiteStrictMode
+	sessionManager.Cookie.Name = "go-todo-session"
 
 	pSetter := &models.ProjectSetter{Name: ref("life")}
 	models.Projects.Insert(pSetter).One(context.Background(), bobDB)
 
-	e.GET("/", func(c echo.Context) error {
-		s := views.State{Version: version}
-		tds, err := models.Todos.
-			Query(
-				models.SelectWhere.Todos.Done.EQ(false),
-				sm.OrderBy(models.Todos.Columns.ID).Desc()).
-			All(ctx(c), bobDB)
-		if err != nil {
-			return err
-		}
-		tds2, err := models.Todos.
-			Query(
-				models.SelectWhere.Todos.Done.EQ(true),
-				sm.OrderBy(models.Todos.Columns.ID).Desc(),
-				sm.Limit(20)).
-			All(ctx(c), bobDB)
-		if err != nil {
-			return err
-		}
-
-		return renderOK(c, views.Todos(s, append(tds, tds2...)))
-	})
-
-	type PostTodo struct {
-		Item string `json:"input"`
+	e := echo.New()
+	api := &API{
+		db:      bobDB,
+		scs:     sessionManager,
+		version: version,
 	}
-	e.POST("/todo", func(c echo.Context) error {
-		data := new(PostTodo)
-		if err := c.Bind(data); err != nil {
-			slog.Error(err.Error())
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		if len(data.Item) <= 3 {
-			return c.NoContent(http.StatusBadRequest)
-		}
-		todoS := models.TodoSetter{
-			ProjectID: ref(int64(1)),
-			Title:     ref(data.Item),
-		}
-		todo, err := models.Todos.Insert(&todoS).One(ctx(c), bobDB)
-		if err != nil {
-			return err
-		}
-		h := c.Response().Header()
-		h.Set(echo.HeaderContentType, echo.MIMETextHTML)
-		h.Set("datastar-selector", "#todo-list")
-		h.Set("datastar-mode", "prepend")
-		return render(c, http.StatusCreated, views.Todo(todo))
-	})
-
-	e.PUT("/todo/:id", func(c echo.Context) error {
-		id := c.Param("id")
-		todo, err := models.FindTodo(ctx(c), bobDB, parseID(id))
-		if err != nil {
-			return c.NoContent(http.StatusNotFound)
-		}
-		todo.Update(ctx(c), bobDB, &models.TodoSetter{Done: ref(!todo.Done)})
-		if err != nil {
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		return c.Redirect(http.StatusSeeOther, "/")
-	})
+	routes(e, api)
 
 	slog.Info("starting HTTP Server", "port", port)
 	err = e.Start(fmt.Sprintf(":%d", port))
 	exitIfErr(err)
+}
+
+func Authenticate(db bob.Executor, username string, password string) (int64, error) {
+	user, err := models.Users.Query(
+		models.SelectWhere.Users.Username.EQ(username),
+	).One(context.TODO(), db)
+	if err != nil {
+		return 0, err
+	}
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordDigest), []byte(password))
+	if err != nil {
+		return 0, err
+	}
+	return user.ID, nil
 }
 
 func parseID(i string) int64 {
@@ -187,6 +153,79 @@ func midSlogConfig() middleware.RequestLoggerConfig {
 			}
 			return nil
 		},
+	}
+}
+
+func (a *API) midLoadAndSaveCookie(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		c.Response().Header().Add("Vary", "Cookie")
+		ctx := c.Request().Context()
+
+		var token string
+		cookie, err := c.Cookie(a.scs.Cookie.Name)
+		if err == nil {
+			token = cookie.Value
+		}
+		ctx, err = a.scs.Load(ctx, token)
+		if err != nil {
+			return err
+		}
+		c.SetRequest(c.Request().WithContext(ctx))
+
+		c.Response().Before(func() {
+			switch a.scs.Status(ctx) {
+			case scs.Modified:
+				token, expiry, err := a.scs.Commit(ctx)
+				if err != nil {
+					panic(err)
+				}
+				a.scs.WriteSessionCookie(ctx, c.Response().Writer, token, expiry)
+			case scs.Destroyed:
+				a.scs.WriteSessionCookie(ctx, c.Response().Writer, "", time.Time{})
+			}
+		})
+
+		return next(c)
+	}
+}
+
+func (a *API) midAuthenticateFromSession(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		id := a.scs.GetInt64(c.Request().Context(), ctxKeyAuthenticatedUserID)
+		if id == 0 {
+			slog.Info("no authenticated user")
+			return next(c)
+		}
+
+		usr, err := models.FindUser(ctx(c), a.db, int64(id))
+		if err != nil {
+			return err
+		}
+		if usr != nil {
+			slog.Info("user is authenticated")
+			ctx := context.WithValue(c.Request().Context(), ctxKeyIsAuthenticated, true)
+			ctx = context.WithValue(ctx, ctxUser, usr)
+			c.SetRequest(c.Request().WithContext(ctx))
+		}
+		return next(c)
+	}
+}
+
+func (a *API) midRequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		isAuthenticated, ok := ctx(c).Value(ctxKeyIsAuthenticated).(bool)
+		if !ok {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+		if !isAuthenticated {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+
+		// Set the "Cache-Control: no-store" header so that pages require
+		// authentication are not stored in the users browser cache (or
+		// other intermediary cache).
+		c.Response().Header().Add("Cache-Control", "no-store")
+		return next(c)
 	}
 }
 

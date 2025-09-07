@@ -17,13 +17,7 @@ templ Layout(s State) {
 			<title>TODO App</title>
 		</head>
 		<body>
-			<header>
-				if s.IsAuthenticated {
-					<button>Logout</button>
-				} else {
-					<button>Log In</button>
-				}
-			</header>
+			<header></header>
 			<main>
 				{ children... }
 			</main>
