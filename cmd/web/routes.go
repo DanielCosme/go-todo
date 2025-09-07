@@ -39,17 +39,26 @@ func routes(e *echo.Echo, api *API) {
 	}
 }
 
-func (a *API) PutTodo(c echo.Context) error {
-	id := c.Param("id")
-	todo, err := models.FindTodo(ctx(c), a.db, parseID(id))
+func (a *API) Index(c echo.Context) error {
+	s := views.State{Version: a.version}
+	tds, err := models.Todos.
+		Query(
+			models.SelectWhere.Todos.Done.EQ(false),
+			sm.OrderBy(models.Todos.Columns.ID).Desc()).
+		All(ctx(c), a.db)
 	if err != nil {
-		return c.NoContent(http.StatusNotFound)
+		return err
 	}
-	err = todo.Update(ctx(c), a.db, &models.TodoSetter{Done: ref(!todo.Done)})
+	tds2, err := models.Todos.
+		Query(
+			models.SelectWhere.Todos.Done.EQ(true),
+			sm.OrderBy(models.Todos.Columns.ID).Desc(),
+			sm.Limit(20)).
+		All(ctx(c), a.db)
 	if err != nil {
-		return c.NoContent(http.StatusInternalServerError)
+		return err
 	}
-	return c.Redirect(http.StatusSeeOther, "/")
+	return renderOK(c, views.Todos(s, append(tds, tds2...)))
 }
 
 type PostTodo struct {
@@ -80,6 +89,19 @@ func (a *API) PostTodo(c echo.Context) error {
 	return render(c, http.StatusCreated, views.Todo(todo))
 }
 
+func (a *API) PutTodo(c echo.Context) error {
+	id := c.Param("id")
+	todo, err := models.FindTodo(ctx(c), a.db, parseID(id))
+	if err != nil {
+		return c.NoContent(http.StatusNotFound)
+	}
+	err = todo.Update(ctx(c), a.db, &models.TodoSetter{Done: ref(!todo.Done)})
+	if err != nil {
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	return c.Redirect(http.StatusSeeOther, "/")
+}
+
 func (a *API) GetLogin(c echo.Context) error {
 	isAuthenticated, ok := ctx(c).Value(ctxKeyIsAuthenticated).(bool)
 	if ok && isAuthenticated {
@@ -102,28 +124,6 @@ func (a *API) PostLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	a.scs.Put(c.Request().Context(), ctxKeyAuthenticatedUserID, userID)
+	a.scs.Put(c.Request().Context(), string(ctxKeyAuthenticatedUserID), userID)
 	return c.Redirect(http.StatusFound, "/")
-}
-
-func (a *API) Index(c echo.Context) error {
-	s := views.State{Version: a.version}
-	tds, err := models.Todos.
-		Query(
-			models.SelectWhere.Todos.Done.EQ(false),
-			sm.OrderBy(models.Todos.Columns.ID).Desc()).
-		All(ctx(c), a.db)
-	if err != nil {
-		return err
-	}
-	tds2, err := models.Todos.
-		Query(
-			models.SelectWhere.Todos.Done.EQ(true),
-			sm.OrderBy(models.Todos.Columns.ID).Desc(),
-			sm.Limit(20)).
-		All(ctx(c), a.db)
-	if err != nil {
-		return err
-	}
-	return renderOK(c, views.Todos(s, append(tds, tds2...)))
 }

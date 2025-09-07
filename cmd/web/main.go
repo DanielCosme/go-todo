@@ -37,9 +37,11 @@ import (
 // NOTE: Remember that request with the header "Datastar-Request: true"
 // 		 are actions generated in the front-end (@get, @post, @put, etc...)
 
-const ctxKeyAuthenticatedUserID = "authenticated_user_id"
-const ctxKeyIsAuthenticated = "is_authenticated"
-const ctxUser = "user"
+type ContextKey string
+
+const ctxKeyAuthenticatedUserID ContextKey = "authenticated_user_id"
+const ctxKeyIsAuthenticated ContextKey = "is_authenticated"
+const ctxUser ContextKey = "user"
 
 var version string
 
@@ -141,19 +143,6 @@ func render(c echo.Context, status int, co templ.Component) error {
 	return c.HTMLBlob(status, buf.Bytes())
 }
 
-func midSecureHeaders(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		h := c.Response().Header()
-		h.Set(echo.HeaderContentSecurityPolicyReportOnly,
-			"default-src 'self;"+
-				"style-src 'self';"+
-				"script-src 'self' cdn.jsdelivr.net;"+
-				"object-src 'self'")
-
-		return next(c)
-	}
-}
-
 func midSlogConfig() middleware.RequestLoggerConfig {
 	return middleware.RequestLoggerConfig{
 		LogMethod:   true,
@@ -217,7 +206,7 @@ func (a *API) midLoadAndSaveCookie(next echo.HandlerFunc) echo.HandlerFunc {
 
 func (a *API) midAuthenticateFromSession(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		id := a.scs.GetInt64(c.Request().Context(), ctxKeyAuthenticatedUserID)
+		id := a.scs.GetInt64(c.Request().Context(), string(ctxKeyAuthenticatedUserID))
 		if id == 0 {
 			slog.Info("no authenticated user")
 			return next(c)

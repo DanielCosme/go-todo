@@ -37,6 +37,20 @@ tasks:
       GIT_COMMIT:
         sh: git log -n 1 --format=%h
 
+  build-prod:
+    cmds:
+      - task: gen-all
+      - task: ci
+      - go build -ldflags="-extldflags=-static -X main.version=1.0.0" -o=./{{.APP_NAME}} ./cmd/web
+    vars:
+      GIT_COMMIT:
+        sh: git log -n 1 --format=%h
+
+  ci:
+    deps: [audit, test]
+    cmds:
+      - task: static-check
+
   tools:
     desc: "Install CLI tools"
     aliases: [deps]
