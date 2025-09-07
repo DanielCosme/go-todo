@@ -76,7 +76,7 @@ func main() {
 	exitIfErr(err)
 	m.Log = NewMigrateLogger(logger, false)
 	slog.Info("migrations: loaded")
-	if err := m.Up(); err != nil {
+	if err := m.Migrate(2); err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
 			slog.Info("migrations: no change")
 		} else {
