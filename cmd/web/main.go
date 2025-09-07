@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,10 @@ import (
 	"github.com/alexedwards/scs/sqlite3store"
 	"github.com/alexedwards/scs/v2"
 	"github.com/danielcosme/go-todo/database/gen/models"
+	"github.com/danielcosme/go-todo/database/migrations"
+	"github.com/golang-migrate/migrate/v4"
+	migrate_sqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lmittmann/tint"
@@ -58,6 +63,27 @@ func main() {
 	err = db.Ping()
 	exitIfErr(err)
 	bobDB := bob.NewDB(db)
+
+	migrationsFS, err := iofs.New(migrations.MigrationsFS, "sqlite")
+	exitIfErr(err)
+	migrationDriver, err := migrate_sqlite.WithInstance(db, &migrate_sqlite.Config{})
+	exitIfErr(err)
+	m, err := migrate.NewWithInstance(
+		"iofs",
+		migrationsFS,
+		"file://./tmp/todo.db",
+		migrationDriver)
+	exitIfErr(err)
+	m.Log = NewMigrateLogger(logger, false)
+	slog.Info("migrations: loaded")
+	if err := m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			slog.Info("migrations: no change")
+		} else {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+	}
 
 	sessionManager := scs.New()
 	sessionManager.Lifetime = 24 * time.Hour * 15
@@ -255,4 +281,20 @@ func exitIfErr(err error) {
 
 func ref[T any](p T) *T {
 	return &p
+}
+
+type MigrateLogger struct {
+	logger  *slog.Logger
+	verbose bool
+}
+
+func NewMigrateLogger(logger *slog.Logger, v bool) *MigrateLogger {
+	return &MigrateLogger{logger: logger, verbose: v}
+}
+
+func (l *MigrateLogger) Printf(format string, v ...interface{}) {
+	slog.Info(fmt.Sprintf(format, v...))
+}
+func (l *MigrateLogger) Verbose() bool {
+	return l.verbose
 }
