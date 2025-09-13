@@ -1,99 +1,101 @@
 :root {
-    font-size: 20px;
-    --background-color: rgb(8, 57, 41); /* Emerald green */
-    --background-color-light: hsl(160, 75.4%, 19%);
-    --foreground-color: rgb(219, 249, 241); /* Mint */
-    --foreground-color-light: rgb(219, 249, 241); /* Mint */
+  font-size: 20px;
+  --background-color: #111C18;
+  --background-color-light: hsl(160, 75.4%, 19%);
+  --foreground-color: #C1C497;
+  --foreground-color-light: rgb(219, 249, 241);
 }
 
 .fg-color {
-    color: var(--foreground-color);
+  color: var(--foreground-color);
 }
 
 .bg-color-light {
-    background-color: var(--background-color-light);
+  background-color: var(--background-color-light);
 }
 
 input:hover {
-    color: var(--background-color);
-    background-color: var(--foreground-color-light);
+  color: var(--background-color);
+  background-color: var(--foreground-color-light);
 }
 
-*, ::after, ::before {
-    box-sizing: border-box
+*,
+::after,
+::before {
+  box-sizing: border-box
 }
 
 body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    margin: 0;
-    padding: 0;
-    background-color: var(--background-color);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-color: var(--background-color);
 }
 
 .todo {
-    text-align: left;
-    color: var(--foreground-color);
-    background-color: var(--background-color);
-    margin: 3px 0;
-    padding: 2px;
-    border: none;
-    font-size: 0.9rem;
+  text-align: left;
+  color: var(--foreground-color);
+  background-color: var(--background-color);
+  margin: 3px 0;
+  padding: 2px;
+  border: none;
+  font-size: 0.9rem;
 }
 
 .done {
-   text-decoration-line: line-through;
-    color: darkslategray;
+  text-decoration-line: line-through;
+  color: darkslategray;
 }
 
 .todo:hover {
-    color: whitesmoke;
-    background-color: var(--background-color-light);
+  color: whitesmoke;
+  background-color: var(--background-color-light);
 }
 
 header {
-    padding: 0;
-    display: flex;
-    justify-content: flex-end;
+  padding: 0;
+  display: flex;
+  justify-content: flex-end;
 }
 
-header > button {
-    margin: 2px;
-    background-color: var(--background-color);
-    color: var(--foreground-color);
+header>button {
+  margin: 2px;
+  background-color: var(--background-color);
+  color: var(--foreground-color);
 }
 
 main {
-    flex-basis: 100%;
-    margin-bottom: auto;
-    margin-left: 15%;
-    margin-right: 15%;
+  flex-basis: 100%;
+  margin-bottom: auto;
+  margin-left: 15%;
+  margin-right: 15%;
 }
 
-main > .todos {
-    color: var(--foreground-color);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+main>.todos {
+  color: var(--foreground-color);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .todo {
-    width: 100%;
+  width: 100%;
 }
 
 .todo-input {
-    width: 100%;
-    margin-bottom: 10px;
-    border: none;
-    text-align: center;
-    font-size: 0.9rem;
-    background-color: var(--background-color);
-    color: var(--foreground-color);
-    margin-top: 20px;
+  width: 100%;
+  margin-bottom: 10px;
+  border: none;
+  text-align: center;
+  font-size: 0.9rem;
+  background-color: var(--background-color);
+  color: var(--foreground-color);
+  margin-top: 20px;
 }
 
 footer {
-    align-self: center;
-    color: var(--foreground-color);
+  align-self: center;
+  color: var(--foreground-color);
 }
