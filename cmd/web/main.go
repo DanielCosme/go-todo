@@ -28,12 +28,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TODO: Implement Authentication.
-//   Sessions with Alex Edwards library.
-
-// TODO: Deploy.
-//   Single Binary. Systemd Service.
-
 // NOTE: Remember that request with the header "Datastar-Request: true"
 // 		 are actions generated in the front-end (@get, @post, @put, etc...)
 
